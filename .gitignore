@@ -1,0 +1,16 @@
+# 构建产物
+/kernel/*
+!/kernel/.gitkeep
+/deb-pkgs/out/
+/rootfs/debian/
+/rootfs/build/
+/rootfs/debian-ufi003.img
+/rootfs/rootfs.img
+/rootfs/rootfs.img.xz
+/rootfs/debian_version
+/rootfs/info.md
+/rootfs/verify.txt
+/aboot/emmc_appsboot-test-signed.mbn
+/aboot/ver.txt
+/aboot/lk2nd/
+/aboot/qtestsign/

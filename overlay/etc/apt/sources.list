@@ -1,0 +1,5 @@
+# 只使用阿里云源(不插卡、无外网时也不会卡在官方源上)
+deb http://mirrors.aliyun.com/debian/ trixie main contrib non-free non-free-firmware
+deb http://mirrors.aliyun.com/debian/ trixie-updates main contrib non-free non-free-firmware
+deb http://mirrors.aliyun.com/debian/ trixie-backports main contrib non-free non-free-firmware
+deb http://mirrors.aliyun.com/debian-security/ trixie-security main contrib non-free non-free-firmware

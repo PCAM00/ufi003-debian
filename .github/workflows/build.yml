@@ -1,9 +1,16 @@
 name: Build debian
-on: push
+
+on:
+  push:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
-    name: Build debian
+    name: Build debian rootfs + bootloader
     runs-on: ubuntu-latest
     steps:
       - name: Prepare
@@ -11,9 +18,14 @@ jobs:
           sudo apt-get -y update
           sudo apt-get -y install debootstrap binfmt-support qemu-user-static android-sdk-libsparse-utils
           sudo apt-get -y install gcc-arm-none-eabi device-tree-compiler python3-pycryptodome
+          # 腾点磁盘(arm64 chroot 走 qemu,rootfs + xz 比较吃空间)
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost || true
+          df -h /
 
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Prepare repository
         run: git config --global --add safe.directory "$(pwd)"
@@ -23,22 +35,34 @@ jobs:
           cd rootfs
           sudo ./build.sh
           sudo xz -T0 rootfs.img
+          ls -lh rootfs.img.xz verify.txt
 
-      - name: Build bootloader
+      - name: Build bootloader (lk2nd)
+        continue-on-error: true
         run: |
           cd aboot
           ./build.sh
+          ls -l emmc_appsboot-test-signed.mbn
 
       - name: Generate release tag
         id: version
         run: |
-          NAME=$(echo "Debian $(cat rootfs/debian_version)")
-          TAG_NAME=$(cat rootfs/debian_version)-${{ github.run_number }}
-          git tag $TAG_NAME
-          git push origin $TAG_NAME
-          echo -e "- Bootloader: $(cat aboot/ver.txt)\n$(cat rootfs/info.md)\n\n$(git log -1 --format=%B)" > release_notes.md
-          echo "NAME=$NAME" >> $GITHUB_OUTPUT
-          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_OUTPUT
+          NAME="Debian $(cat rootfs/debian_version) for UFI003 (no-modem, 1.2GHz OC)"
+          TAG_NAME="$(cat rootfs/debian_version)-${{ github.run_number }}"
+          git tag "$TAG_NAME"
+          git push origin "$TAG_NAME"
+          {
+            echo "- Bootloader: $(cat aboot/ver.txt 2>/dev/null || echo '(本次未构建成功,沿用设备上已有的即可)')"
+            cat rootfs/info.md
+            echo
+            echo "---"
+            echo "详细构建校验见 release 附件 verify.txt"
+            echo
+            git log -1 --format=%B
+          } > release_notes.md
+          echo "NAME=$NAME" >> "$GITHUB_OUTPUT"
+          echo "TAG_NAME=$TAG_NAME" >> "$GITHUB_OUTPUT"
+          cat release_notes.md
 
       - name: Releases
         uses: softprops/action-gh-release@v2
@@ -46,7 +70,10 @@ jobs:
           name: ${{ steps.version.outputs.NAME }}
           body_path: release_notes.md
           tag_name: ${{ steps.version.outputs.TAG_NAME }}
+          fail_on_unmatched_files: false
           files: |
             aboot/emmc_appsboot-test-signed.mbn
             kernel/*.img
             rootfs/rootfs.img.xz
+            rootfs/verify.txt
+            rootfs/info.md

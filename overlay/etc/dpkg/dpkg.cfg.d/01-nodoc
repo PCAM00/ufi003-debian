@@ -1,0 +1,7 @@
+# 精简:装包时不落 doc/man/locale 这些用不上的东西
+path-exclude=/usr/share/doc/*
+path-exclude=/usr/share/man/*
+path-exclude=/usr/share/info/*
+path-exclude=/usr/share/locale/*
+path-exclude=/usr/share/groff/*
+path-exclude=/usr/share/lintian/*

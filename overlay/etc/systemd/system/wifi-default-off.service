@@ -1,0 +1,12 @@
+[Unit]
+Description=Keep WiFi radio off by default (config retained)
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/wifi-default-off.sh
+
+[Install]
+WantedBy=multi-user.target
