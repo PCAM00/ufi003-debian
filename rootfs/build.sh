@@ -7,9 +7,13 @@
 #    - 定制     : 见 ../overlay/ 与 chroot.sh
 # ==============================================================================
 set -e
+set -o pipefail
 
 DIST=trixie
-MIRROR="http://mirrors.aliyun.com/debian"
+# 构建期用 Debian 官方源:CI runner 在海外,debootstrap 是"一个包一次 wget",
+# 从阿里云拉会慢到离谱(实测该步骤 58 分钟,整轮 72 分钟)。
+# ★ 成品系统里的 apt 源仍然是「只有阿里云」——由 overlay/etc/apt/sources.list 覆盖,与这里无关。
+BOOTSTRAP_MIRROR="http://deb.debian.org/debian"
 
 KERNEL_TAG=6.12.49-1
 KERNEL_BASE="https://github.com/KyonLi/ufi003-kernel/releases/download/${KERNEL_TAG}"
@@ -40,11 +44,22 @@ echo "=============================================================="
 bash ../deb-pkgs/repack-nomodem.sh ../deb-pkgs
 
 echo "=============================================================="
-echo "[3/7] debootstrap $DIST/arm64  ($MIRROR)"
+echo "[3/7] debootstrap $DIST/arm64  ($BOOTSTRAP_MIRROR)"
 echo "=============================================================="
+# debootstrap 必须能校验 Release 签名,否则基础系统是"未经验证"下载来的
+KEYRING=/usr/share/keyrings/debian-archive-keyring.gpg
+if [ ! -s "$KEYRING" ]; then
+    echo "!! 缺少 $KEYRING,debootstrap 无法校验签名,拒绝构建" >&2
+    echo "   请先安装:apt-get install -y debian-archive-keyring" >&2
+    exit 1
+fi
 rm -rf debian build debian-ufi003.img rootfs.img
 mkdir -p debian
-debootstrap --arch=arm64 --foreign "$DIST" debian "$MIRROR"
+debootstrap --arch=arm64 --foreign "$DIST" debian "$BOOTSTRAP_MIRROR" 2>&1 | tee /tmp/debootstrap.log
+if grep -q "Cannot check Release signature" /tmp/debootstrap.log; then
+    echo "!! debootstrap 未能校验 Release 签名,拒绝继续" >&2
+    exit 1
+fi
 LANG=C LANGUAGE=C LC_ALL=C chroot debian /debootstrap/debootstrap --second-stage
 
 echo "=============================================================="

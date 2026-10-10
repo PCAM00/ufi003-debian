@@ -16,7 +16,7 @@ jobs:
       - name: Prepare
         run: |
           sudo apt-get -y update
-          sudo apt-get -y install debootstrap binfmt-support qemu-user-static android-sdk-libsparse-utils
+          sudo apt-get -y install debootstrap debian-archive-keyring binfmt-support qemu-user-static android-sdk-libsparse-utils
           sudo apt-get -y install gcc-arm-none-eabi device-tree-compiler python3-pycryptodome
           # 腾点磁盘(arm64 chroot 走 qemu,rootfs + xz 比较吃空间)
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost || true

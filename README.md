@@ -57,7 +57,16 @@
 也可以在 Actions 页面手动 `workflow_dispatch`。
 
 本地构建(需要 root):`rootfs/build.sh`,依赖
-`debootstrap rsync qemu-user-static binfmt-support android-sdk-libsparse-utils`。
+`debootstrap debian-archive-keyring rsync qemu-user-static binfmt-support android-sdk-libsparse-utils`。
+
+构建期两点说明:
+
+- **debootstrap 阶段走 `deb.debian.org`**(不是阿里云)。CI runner 在海外,debootstrap 是
+  "一个包一次 wget",从阿里云拉实测要 58 分钟。成品系统里的 apt 源仍然**只有阿里云**,
+  由 `overlay/etc/apt/sources.list` 决定,与构建期用哪个源无关。
+- **必须有 `debian-archive-keyring`**。缺了它 debootstrap 会打印
+  `Cannot check Release signature` 并跳过校验,等于基础系统是未经验证下载的;
+  `build.sh` 现在会直接拒绝构建。
 
 ## 注意
 
