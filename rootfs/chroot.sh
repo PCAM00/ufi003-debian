@@ -172,7 +172,7 @@ cat <<EOF > /tmp/info.md
 - 默认用户名: root
 - 默认密码: $PASSWORD
 - RNDIS 地址: 10.42.0.1/24(gadget 模式;对端电脑设 10.42.0.2/24)
-- WiFi: 默认关闭、配置保留(nmcli radio wifi on);应急热点 openstick-failsafe / 12345678
+- WiFi: 默认关闭(nmcli radio wifi on 可开;驱动与固件保留,不预置任何热点配置)
 - USB 主从切换: /root/usb-mode.sh host | gadget | status | nat on|off
 - apt 源: 仅阿里云
 EOF

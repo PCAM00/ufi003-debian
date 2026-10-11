@@ -18,7 +18,7 @@
 | USB Gadget | `rndis` + `ffs(adb)`,RNDIS 静态地址 **10.42.0.1/24** |
 | 网络管理 | 装 **NetworkManager**;host 模式插 RTL8153 自动 DHCP 上网 |
 | SSH | `openssh-server`,开机即开,`PermitRootLogin yes`,首次启动重新生成 host key |
-| WiFi | **默认关闭**(开机 `nmcli radio wifi off`),但驱动/固件/连接配置全部保留;带一个默认不启用的应急热点配置 |
+| WiFi | **默认关闭**(开机 `nmcli radio wifi off`),但驱动/固件/NetworkManager 全部保留,需要时一条命令打开 |
 | 精简 | 不装推荐包、不落 doc/man/info/locale、无 vim/git/编译器;zram 300%;journal 上限 32M |
 | 主从切换 | `/root/usb-mode.sh host\|gadget\|status\|nat on\|off` |
 
@@ -36,7 +36,8 @@
 
 - root / `1234`(请 `passwd` 改掉)
 - gadget 模式:RNDIS `usb*` = **10.42.0.1/24**,对端电脑设 `10.42.0.2/24`
-- 应急热点(默认关):`openstick-failsafe` / `12345678`
+- WiFi:默认关闭。要连 WiFi:`nmcli radio wifi on` + `nmcli device wifi connect <SSID> password <密码>`
+  (不预置任何热点/AP 配置)
 
 ## USB 主 / 从模式切换
 

@@ -37,12 +37,11 @@ apt 源      仅阿里云 (mirrors.aliyun.com)
 --------------------------------------------------------------------------------
 3. 网络 / WiFi
 --------------------------------------------------------------------------------
-  WiFi 默认是【关】的(射频关闭),但驱动、固件、连接配置全部保留:
+  WiFi 默认是【关】的(射频关闭),但驱动、固件全都保留,配好连接就能用:
       nmcli radio wifi on                      # 打开 WiFi 射频
-      nmcli connection up failsafe-ap          # 起一个应急热点
-                                               # SSID openstick-failsafe / 密码 12345678
-      nmcli connection down failsafe-ap        # 关掉热点
-      nmcli radio wifi off                     # 再关掉射频
+      nmcli device wifi list                   # 扫一下周围
+      nmcli device wifi connect <SSID> password <密码>
+      nmcli radio wifi off                     # 不用了再关掉
   想让它开机不自动关 WiFi: 把 /etc/default/wifi-default-off 里的 WIFI_OFF 改成 no
 
   RNDIS 静态地址在 /etc/NetworkManager/system-connections/rndis-usb0.nmconnection
