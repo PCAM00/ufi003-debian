@@ -94,7 +94,8 @@ fi
 cp ../kernel/linux-image-*.deb chroot.sh "${WORK}/tmp/"
 rsync -a --chown=root:root ../overlay/ "${WORK}/"
 chmod 600 "${WORK}"/etc/NetworkManager/system-connections/*.nmconnection
-chmod 755 "${WORK}/root/usb-mode.sh" "${WORK}/root/imei.sh"
+chmod 755 "${WORK}/root/usb-mode.sh" "${WORK}/root/imei.sh" \
+          "${WORK}/usr/bin/rpmsgexport" "${WORK}/usr/local/share/diag-tools/"*.py
 chmod 700 "${WORK}/root"
 
 echo "=============================================================="

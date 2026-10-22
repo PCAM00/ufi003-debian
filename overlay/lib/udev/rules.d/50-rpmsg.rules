@@ -1,0 +1,8 @@
+# 来自 diag-tools(https://git.abscue.de/affe_null/diag-tools,GPL-3)
+# rpmsg 设备一出现,就把 modem(hexagon)的 DIAG 通道导出到 /dev/rpmsg/hexagon/*
+SUBSYSTEM=="rpmsg", KERNEL=="rpmsg_ctrl[0-9]*", ATTRS{rpmsg_name}=="?*", SYMLINK+="rpmsg/$attr{rpmsg_name}/ctrl"
+SUBSYSTEM=="rpmsg", KERNEL=="rpmsg[0-9]*", ATTR{name}=="?*", ATTRS{rpmsg_name}=="?*", SYMLINK+="rpmsg/$attr{rpmsg_name}/$attr{name}"
+
+ACTION=="add", SUBSYSTEM=="rpmsg", KERNEL=="rpmsg_ctrl[0-9]*", ATTRS{rpmsg_name}=="hexagon", RUN+="/usr/bin/rpmsgexport /dev/$name DIAG"
+ACTION=="add", SUBSYSTEM=="rpmsg", KERNEL=="rpmsg_ctrl[0-9]*", ATTRS{rpmsg_name}=="hexagon", RUN+="/usr/bin/rpmsgexport /dev/$name DIAG_CNTL"
+ACTION=="add", SUBSYSTEM=="rpmsg", KERNEL=="rpmsg_ctrl[0-9]*", ATTRS{rpmsg_name}=="hexagon", RUN+="/usr/bin/rpmsgexport /dev/$name DIAG_CMD"

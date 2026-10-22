@@ -43,6 +43,21 @@
 - WiFi:默认开着。连网:`nmtui`,或 `nmcli device wifi connect <SSID> password <密码>`
   (不预置任何热点/AP 配置)
 
+## IMEI(modem 变体)
+
+带基带固件里带 `/root/imei.sh`:
+
+```sh
+/root/imei.sh status          # 基带/DIAG 通道是否就绪
+/root/imei.sh get             # 读 IMEI(mmcli,失败则走 DIAG NV550)
+/root/imei.sh set <15位IMEI> --yes   # 改号(先备份 -> SPC 解锁 -> 写 NV550 -> 复核)
+/root/imei.sh backup          # 备份 modemst1/modemst2 到 /root/imei-backup
+```
+
+改号链路:modem → rpmsg(`hexagon`)→ `diag-router`(CI 里现场编好)→ `/usr/local/share/diag-tools/diag-nv.py`。
+需要 modem 已加载;modem 重启后 `systemctl restart diag-router`。
+⚠️ 改 IMEI 在多数地区受监管,请只对自己的设备、自担风险;先 backup 再动手。
+
 ## USB 主 / 从模式切换
 
 机器上直接跑(详见 `/root/README.txt`):

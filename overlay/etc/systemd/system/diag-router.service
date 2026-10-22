@@ -1,0 +1,14 @@
+[Unit]
+Description=Qualcomm DIAG router(modem DIAG -> 抽象 unix socket)
+Documentation=https://github.com/linux-msm/diag
+After=openstick-gc-startup.service
+# modem 的 rpmsg 通道要先出来
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/diag-router
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

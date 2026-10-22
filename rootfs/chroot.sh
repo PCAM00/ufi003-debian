@@ -82,6 +82,25 @@ if [ "$VARIANT" = "modem" ]; then
     # 只屏蔽"离线自动拉热点"的诊断(不想要热点),换 SIM/基带相关全部保留
     systemctl disable openstick-startup-diagnose.service openstick-startup-diagnose.timer >/dev/null 2>&1 || true
     systemctl mask openstick-startup-diagnose.service openstick-startup-diagnose.timer >/dev/null 2>&1 || true
+
+    # diag-router:IMEI/NV 读写走 DIAG(rpmsg/hexagon 通道)
+    # 现场编(装临时工具链,编完卸掉),失败不影响出包
+    echo "  -> 现场编译 diag-router(IMEI 改号用)"
+    apt-get -y -q install --no-install-recommends gcc libudev-dev make >/dev/null 2>&1 || true
+    if curl -fsSL -o /tmp/diag.tar.gz https://github.com/linux-msm/diag/archive/refs/heads/master.tar.gz; then
+        tar -C /tmp -xzf /tmp/diag.tar.gz 2>/dev/null || true
+        ( cd /tmp/diag-master 2>/dev/null && make HAVE_LIBQRTR=0 CC=gcc >/tmp/diag-build.log 2>&1 ) || true
+        if [ -x /tmp/diag-master/diag-router ]; then
+            install -m 755 /tmp/diag-master/diag-router /usr/local/bin/diag-router
+            echo "     diag-router 安装完成"
+        else
+            echo "!! diag-router 编译失败(imei.sh 的 set 功能将不可用)"; tail -15 /tmp/diag-build.log 2>/dev/null || true
+        fi
+    else
+        echo "!! 下载 diag-router 失败"
+    fi
+    apt-get -y -q purge --auto-remove gcc libudev-dev make >/dev/null 2>&1 || true
+    rm -rf /tmp/diag-master /tmp/diag.tar.gz /tmp/diag-build.log
 else
     echo "  -> 无基带:删 modem/GPS 固件,屏蔽相关服务"
     rm -rf /usr/lib/firmware/modem.* /usr/lib/firmware/mba.mbn \
@@ -100,7 +119,7 @@ systemctl enable openstick-gc-startup.service openstick-button-monitor.service \
                  openstick-expanddisk-startup.service \
                  regenerate-ssh-host-keys.service 2>/dev/null || true
 if [ "$VARIANT" = "modem" ]; then
-    systemctl enable ModemManager.service rmtfs.service 2>/dev/null || true
+    systemctl enable ModemManager.service rmtfs.service diag-router.service 2>/dev/null || true
 fi
 
 # systemctl enable 在 chroot 里偶尔会静默失败,这里补 symlink 兜底
@@ -124,6 +143,7 @@ ensure_enabled openstick-button-monitor.service default.target
 if [ "$VARIANT" = "modem" ]; then
     ensure_enabled ModemManager.service multi-user.target
     ensure_enabled rmtfs.service multi-user.target
+    ensure_enabled diag-router.service multi-user.target
 fi
 
 echo "=============================================================="
@@ -177,6 +197,11 @@ set +e
     echo "== NetworkManager 连接配置 =="
     ls -l /etc/NetworkManager/system-connections/ 2>/dev/null
     echo
+    echo "== DIAG / IMEI 工具(modem 变体)=="
+    ls -l /usr/local/bin/diag-router /usr/local/bin/rpmsgexport 2>/dev/null || echo "(无)"
+    ls -1 /usr/local/share/diag-tools/ 2>/dev/null || true
+    ls -l /lib/udev/rules.d/50-rpmsg.rules 2>/dev/null || true
+    echo
     echo "== /root =="
     ls -l /root/ 2>/dev/null
     echo
@@ -206,6 +231,7 @@ cat <<EOF > /tmp/info.md
 - RNDIS 地址: 静态 10.42.0.1/24(gadget 模式;对端设 10.42.0.2/24,不做 NAT)
 - WiFi: 默认开(nmcli radio wifi off 可关;不预置任何热点配置)
 - USB 主从切换: /root/usb-mode.sh host | gadget | status
+- IMEI: /root/imei.sh status|get|set|backup(改号走 DIAG,详见脚本头注释)
 - apt 源: 仅阿里云
 - /tmp 在 eMMC 上(非内存盘);ext4 未设 commit= 参数(跟随酷安包默认)
 EOF
