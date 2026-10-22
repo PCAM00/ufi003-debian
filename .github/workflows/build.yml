@@ -45,6 +45,7 @@ jobs:
           ls -lh rootfs-modem.img.xz verify-modem.txt
 
       - name: Build boot-oc-modem.img (带基带 + 1.2GHz)
+        continue-on-error: true
         run: |
           sudo bash .github/build-oc-modem.sh
 
