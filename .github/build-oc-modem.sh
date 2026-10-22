@@ -60,10 +60,12 @@ dtc -I dts -O dtb modem.dts -o modem-oc.dtb
 # 注意:不能用 `dtc ... | grep -q` + pipefail —— grep -q 提前关管道会让 dtc 吃 SIGPIPE(141),
 # pipefail 会把整条管道判为失败
 CHECK=$(dtc -I dtb -O dts modem-oc.dtb 2>/dev/null) || { echo "反编译校验失败" >&2; exit 1; }
-if ! printf '%s' "$CHECK" | grep -q "0x48190800"; then
-    echo "校验失败:新 DTB 里没有 1.2GHz OPP" >&2; exit 1
-fi
-echo "校验: 1.2GHz OPP 已写入 OK"
+# 这里绝对不能用 "xxx | grep -q":grep -q 命中即关管道,上游进程吃 SIGPIPE,
+# 在 set -o pipefail 下整条管道会被判为失败(两次 CI 都栽在这)。用 case 纯 shell 匹配。
+case "$CHECK" in
+    *0x48190800*) echo "校验: 1.2GHz OPP 已写入 OK" ;;
+    *) echo "校验失败:新 DTB 里没有 1.2GHz OPP" >&2; exit 1 ;;
+esac
 
 echo "==> [3/4] 纯 Python 重打包(换 DTB,保留 kernel/ramdisk/cmdline)"
 python3 - <<'PY'
