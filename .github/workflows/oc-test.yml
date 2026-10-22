@@ -1,0 +1,37 @@
+name: OC boot img test
+
+# 临时排查用:只跑 build-oc-modem.sh,不构建 rootfs。
+# 手动触发(Actions 页面 Run workflow,或 workflow_dispatch API),跑完 1-2 分钟,日志很小可完整查看。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  oc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 环境
+        run: |
+          sudo apt-get -y update
+          sudo apt-get -y install device-tree-compiler wget
+          dtc --version
+          bash --version | head -1
+          python3 --version
+      - name: 跑 build-oc-modem.sh(带 trace)
+        run: |
+          set -o pipefail
+          bash -x .github/build-oc-modem.sh 2>&1 | tail -120
+      - name: 产物信息
+        if: always()
+        run: |
+          ls -l kernel/ 2>/dev/null || true
+          [ -f kernel/boot-oc-modem.img ] && md5sum kernel/boot-oc-modem.img || echo "!! boot-oc-modem.img 没有生成"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: boot-oc-modem
+          path: kernel/boot-oc-modem.img
+          if-no-files-found: warn
