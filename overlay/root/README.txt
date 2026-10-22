@@ -13,38 +13,37 @@ apt 源      仅阿里云 (mirrors.aliyun.com)
   用户 root    密码 1234
   开机 SSH 就是开的(22 端口),请尽快改密码: passwd
 
+  登录后会打印当前 USB 角色和 IP(挂在 /etc/profile.d/00-usb-ip.sh)。
+
   串口调试: 接 U 口旁的串口(ttyMSM0, 115200)可看到内核与 systemd 输出。
 
 --------------------------------------------------------------------------------
-2. USB 主 / 从模式切换(最常用的东西)
+2. USB 主 / 从模式切换
 --------------------------------------------------------------------------------
   /root/usb-mode.sh host       U 口当【主机】
                                插 RTL8153 网口转 USB,本机即可通过它上网
                                (NetworkManager 自动 DHCP,插上就能用)
 
-  /root/usb-mode.sh gadget     U 口当【设备】(默认就是这个)
+  /root/usb-mode.sh gadget     U 口当【设备】(开机默认)
                                对电脑提供 RNDIS 网卡 + adb
-                               本机在该网段固定 10.42.0.1/24
-                               对端电脑网卡请设 10.42.0.2/24
-                               想要对端插上就自动拿 IP: /root/usb-mode.sh nat on
+                               本机 = 10.42.0.1/24;对端电脑请设 10.42.0.2/24
+                               (静态地址,不做 NAT)
 
-  /root/usb-mode.sh status     看当前是 host 还是 gadget、网卡和地址
-
-  /root/usb-mode.sh nat on     对端电脑共享本机网络(DHCP + NAT),用完 nat off 关掉
+  /root/usb-mode.sh status     看当前模式、网卡、地址
 
   开机默认 = gadget 模式,由 openstick-gc-startup.service 负责建立。
 
 --------------------------------------------------------------------------------
 3. 网络 / WiFi
 --------------------------------------------------------------------------------
-  WiFi 默认是【关】的(射频关闭),但驱动、固件全都保留,配好连接就能用:
-      nmcli radio wifi on                      # 打开 WiFi 射频
-      nmcli device wifi list                   # 扫一下周围
+  WiFi 默认是【开】的(驱动/固件全保留),网络全交给 NetworkManager:
+      nmtui                                    # 文本界面:连 WiFi / 看设备
+      nmcli radio wifi off                     # 不想用就把射频关掉(状态会保存)
+      nmcli radio wifi on                      # 再打开
       nmcli device wifi connect <SSID> password <密码>
-      nmcli radio wifi off                     # 不用了再关掉
-  想让它开机不自动关 WiFi: 把 /etc/default/wifi-default-off 里的 WIFI_OFF 改成 no
+  不预置任何热点/AP 配置。
 
-  RNDIS 静态地址在 /etc/NetworkManager/system-connections/rndis-usb0.nmconnection
+  RNDIS 配置在 /etc/NetworkManager/system-connections/rndis-usb0.nmconnection
   (文件权限必须是 600,否则 NetworkManager 会忽略它)
 
 --------------------------------------------------------------------------------
@@ -54,7 +53,7 @@ apt 源      仅阿里云 (mirrors.aliyun.com)
   - rootfs 里删掉了 modem.* / mba.mbn / modem_pr / isdbtmm / nfc_test 等固件
   - 没装 modemmanager / rmtfs / qrtr-tools
   - 屏蔽了 openstick-sim-changer.service(换 SIM 用)和
-    openstick-startup-diagnose.timer(它会在离线时自动拉起 WiFi 热点,与"默认不开 WiFi"冲突)
+    openstick-startup-diagnose.timer(它会在离线时自动拉起 WiFi 热点,这个不要了)
 
   无线(wcnss + wlan/prima)固件保留,所以 WiFi 随时能用。
 
@@ -63,7 +62,8 @@ apt 源      仅阿里云 (mirrors.aliyun.com)
 --------------------------------------------------------------------------------
   - 全局不装推荐包(/etc/apt/apt.conf.d/01norecommends)
   - 不落 doc/man/info/locale(/etc/dpkg/dpkg.cfg.d/01-nodoc)
-  - 没装 vim/git/编译器等大件,需要时 apt install 即可(阿里云源很快)
+  - /tmp 在 eMMC 上(不做内存盘,免得小内存机器把 /tmp 写爆)
+  - 常用工具:net-tools(ifconfig)/ curl / nano / less / usbutils / rsync
   - zram 交换 = 内存的 300%,lzo-rle(小内存机器很有用)
   - systemd journal 上限 32M,不会无限写 eMMC
     (/etc/systemd/journald.conf.d/10-size.conf)
@@ -71,10 +71,10 @@ apt 源      仅阿里云 (mirrors.aliyun.com)
 --------------------------------------------------------------------------------
 6. 常用检查
 --------------------------------------------------------------------------------
-  ip -br addr                       # 网卡与地址
+  ip -br addr / ifconfig            # 网卡与地址
   nmcli device status               # NetworkManager 视角
   systemctl status openstick-gc-startup.service
-  dmesg | grep -iE 'dwc3|udc|r8152|wcnss'
+  dmesg | grep -iE 'ci_hdrc|udc|r8152|wcnss'
   journalctl -b | tail -50
 
 --------------------------------------------------------------------------------

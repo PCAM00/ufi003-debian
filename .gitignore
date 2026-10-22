@@ -14,3 +14,10 @@
 /aboot/ver.txt
 /aboot/lk2nd/
 /aboot/qtestsign/
+/rootfs/debian-base/
+/rootfs/debian-nomodem/
+/rootfs/debian-modem/
+/rootfs/rootfs-modem.img
+/rootfs/rootfs-modem.img.xz
+/rootfs/info-*.md
+/rootfs/verify-*.txt

@@ -1,5 +1,5 @@
-# gadget(RNDIS)网卡:静态 10.42.0.1/24
-# 对端电脑请把网卡设为 10.42.0.2/24(网关/可不填),或用 /root/usb-mode.sh nat on 让它自动获取
+# gadget(RNDIS)网卡:静态 10.42.0.1/24(只配网,不做 NAT)
+# 对端电脑请把网卡设为 10.42.0.2/24(网关可填 10.42.0.1)
 [connection]
 id=rndis-usb0
 uuid=8f2c4e10-9a3b-4c5d-8e6f-1a2b3c4d5e60

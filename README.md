@@ -13,30 +13,34 @@
 | --- | --- |
 | 发行版 | Debian **13 (trixie)** arm64 |
 | 超频 | 直接用 `boot-no-modem-oc.img`,CPU 超到 **1.2GHz** |
-| modem / GPS | **去掉**:用 no-modem 内核,rootfs 里删掉 `modem.*`/`mba.mbn`/`modem_pr`/`isdbtmm`/`nfc_test`,不装 modemmanager/rmtfs/qrtr-tools,屏蔽 `ModemManager`、`openstick-sim-changer`、`openstick-startup-diagnose`(后者会在离线时自动拉起 WiFi 热点) |
+| modem / GPS | **两种变体**:no-modem = 去掉(no-modem 内核 + 删固件 + 不装 modemmanager/rmtfs/qrtr-tools + 屏蔽相关服务);modem = 带基带(完整固件 + ModemManager + rmtfs + qrtr-tools)。两版都屏蔽 `openstick-startup-diagnose`(离线自动拉热点,不要) |
 | apt 源 | **仅阿里云**(`mirrors.aliyun.com`) |
-| USB Gadget | `rndis` + `ffs(adb)`,RNDIS 静态地址 **10.42.0.1/24** |
-| 网络管理 | 装 **NetworkManager**;host 模式插 RTL8153 自动 DHCP 上网 |
+| USB Gadget | `rndis` + `ffs(adb)`;RNDIS = 静态 **10.42.0.1/24**(对端设 10.42.0.2/24,不做 NAT) |
+| 网络管理 | **NetworkManager**(配 nmtui);host 模式插 RTL8153 自动 DHCP 上网 |
 | SSH | `openssh-server`,开机即开,`PermitRootLogin yes`,首次启动重新生成 host key |
-| WiFi | **默认关闭**(开机 `nmcli radio wifi off`),但驱动/固件/NetworkManager 全部保留,需要时一条命令打开 |
-| 精简 | 不装推荐包、不落 doc/man/info/locale、无 vim/git/编译器;zram 300%;journal 上限 32M |
-| 主从切换 | `/root/usb-mode.sh host\|gadget\|status\|nat on\|off` |
+| WiFi | **默认开着**(射频不关);要关用 `nmcli radio wifi off`(状态会保存),驱动/固件全保留 |
+| 登录提示 | `/etc/motd` 只留一行系统名;USB 角色 + IP 由 `/etc/profile.d/00-usb-ip.sh` 动态打印 |
+| /tmp | **在 eMMC 上**(不做 tmpfs 内存盘,避免 464MB 机器把 /tmp 写爆) |
+| 精简 | 不装推荐包、不落 doc/man/info/locale;装 `net-tools`(ifconfig)、curl、nano、less、usbutils、rsync;zram 300%;journal 上限 32M |
+| 主从切换 | `/root/usb-mode.sh host\|gadget\|status` |
 
-## 产物(release 附件)
+## 两种变体(每次构建出两个 release)
 
-| 文件 | 用途 |
-| --- | --- |
-| `rootfs.img.xz` | 根文件系统(sparse ext4),解压后写入 rootfs 分区 |
-| `boot.img` | 内核 = `boot-no-modem-oc.img`(去 modem + 1.2GHz) |
-| `boot-no-modem-oc.img` | 同上,保留原文件名 |
-| `emmc_appsboot-test-signed.mbn` | lk2nd 引导(best-effort,失败不影响出包) |
-| `verify.txt` / `info.md` | 构建校验报告 / 摘要 |
+| 变体 | boot 镜像 | rootfs | 说明 |
+| --- | --- | --- | --- |
+| **no-modem**(默认) | `boot.img` / `boot-no-modem-oc.img` | `rootfs.img.xz` | 去 modem/GPS + 1.2GHz,不插卡 |
+| **modem(带基带)** | `boot-oc-modem.img`(1.2GHz)/ `boot-modem.img`(原频兜底) | `rootfs-modem.img.xz` | 保留 modem 固件 + ModemManager + rmtfs,插卡可 4G;带 `/root/imei.sh` |
+
+带基带版的 1.2GHz 镜像是 CI 里现场打的(`.github/build-oc-modem.sh`):
+把官方 modem DTB 加 3 档 OPP(1094.4 / 1152 / 1209.6 MHz)后重新拼 boot 镜像。
+
+每个 release 附件:`emmc_appsboot-test-signed.mbn`(lk2nd,best-effort)、`verify-*.txt`(构建校验)、`info-*.md`(摘要)。
 
 ## 默认账号与地址
 
 - root / `1234`(请 `passwd` 改掉)
-- gadget 模式:RNDIS `usb*` = **10.42.0.1/24**,对端电脑设 `10.42.0.2/24`
-- WiFi:默认关闭。要连 WiFi:`nmcli radio wifi on` + `nmcli device wifi connect <SSID> password <密码>`
+- gadget 模式:RNDIS `usb*` = 静态 **10.42.0.1/24**,对端电脑设 **10.42.0.2/24**
+- WiFi:默认开着。连网:`nmtui`,或 `nmcli device wifi connect <SSID> password <密码>`
   (不预置任何热点/AP 配置)
 
 ## USB 主 / 从模式切换
@@ -47,10 +51,9 @@
 /root/usb-mode.sh host      # U 口当主机:插 RTL8153 网口转 USB,本机借此上网
 /root/usb-mode.sh gadget    # U 口当设备:RNDIS 10.42.0.1/24 + adb(开机默认)
 /root/usb-mode.sh status    # 看当前状态
-/root/usb-mode.sh nat on    # 对端电脑共享本机网络(DHCP + NAT)
 ```
 
-原理是切 msm8916 dwc3 的角色:`/sys/class/udc/ci_hdrc.0/device/role`。
+原理是切 msm8916 的 USB 角色:`/sys/class/udc/ci_hdrc.0/device/role`。
 
 ## 构建
 
@@ -78,3 +81,5 @@
   (与上游一致)。若你的设备分区 PARTUUID 不同,需要改这一行,否则起不来。
 - 没插卡,所以 modem 相关功能(4G 上网、短信、GPS)全部不可用,这是设计如此。
 - `openstick-expanddisk-startup.service` 会在首次启动时把 rootfs 扩到整块 eMMC。
+- 引导器生态要统一:本包是 `thwc,ufi003` 一套(lk2nd + 上游 boot.img)。
+  不要和 `handsome,openstick` 那套(旧 OpenStick 引导器/DTB)混用,否则会起不来。

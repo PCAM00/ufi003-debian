@@ -1,10 +1,1 @@
-
-  UFI003 · Debian · MSM8916 (Snapdragon 410) · 1.2GHz · no-modem
-
-  USB 模式切换 :  /root/usb-mode.sh host | gadget | status | nat on|off
-  本机 root    :  密码 1234 (请尽快 passwd 改掉)
-  RNDIS 地址   :  10.42.0.1/24  (gadget 模式下,对端电脑设 10.42.0.2/24)
-  WiFi         :  默认关闭,配置已保留 —— nmcli radio wifi on 即可用
-  apt 源       :  仅阿里云
-  详细说明     :  cat /root/README.txt
-
+Debian GNU/Linux 13 (trixie)
