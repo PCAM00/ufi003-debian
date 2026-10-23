@@ -27,7 +27,7 @@ jobs:
             debian:13 bash -c '
               set -e
               apt-get update -qq
-              apt-get install -y -qq --no-install-recommends gcc make libudev-dev curl ca-certificates
+              apt-get install -y -qq gcc make libudev-dev libc6-dev curl ca-certificates
               curl -fsSL -o /tmp/d.tgz https://github.com/linux-msm/diag/archive/refs/heads/master.tar.gz
               tar -C /tmp -xzf /tmp/d.tgz
               cd /tmp/diag-*/
