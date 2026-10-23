@@ -93,6 +93,15 @@ else
 fi
 cp ../kernel/linux-image-*.deb chroot.sh "${WORK}/tmp/"
 rsync -a --chown=root:root ../overlay/ "${WORK}/"
+# 护栏:Debian 的 /lib /bin /sbin 都是指向 usr/* 的软链,overlay 里绝不能出现 lib/、bin/、sbin/ 目录,
+# 否则 rsync 会把软链替换成真目录,/lib/ld-linux-aarch64.so.1 消失,chroot 直接起不来(曾白跑 55 分钟)
+for d in lib bin sbin lib64; do
+    if [ -e "${WORK}/$d" ] && [ ! -L "${WORK}/$d" ]; then
+        echo "!! overlay 破坏了 /$d(应是指向 usr/$d 的软链,却成了真目录),拒绝继续" >&2
+        exit 1
+    fi
+done
+[ -e "${WORK}/lib/ld-linux-aarch64.so.1" ] || { echo "!! 动态加载器丢失:${WORK}/lib/ld-linux-aarch64.so.1" >&2; exit 1; }
 chmod 600 "${WORK}"/etc/NetworkManager/system-connections/*.nmconnection
 chmod 755 "${WORK}/root/usb-mode.sh" "${WORK}/root/imei.sh" \
           "${WORK}/usr/bin/rpmsgexport" "${WORK}/usr/local/share/diag-tools/"*.py
