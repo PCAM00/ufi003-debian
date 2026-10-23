@@ -84,23 +84,12 @@ if [ "$VARIANT" = "modem" ]; then
     systemctl mask openstick-startup-diagnose.service openstick-startup-diagnose.timer >/dev/null 2>&1 || true
 
     # diag-router:IMEI/NV 读写走 DIAG(rpmsg/hexagon 通道)
-    # 现场编(装临时工具链,编完卸掉),失败不影响出包
-    echo "  -> 现场编译 diag-router(IMEI 改号用)"
-    apt-get -y -q install --no-install-recommends gcc libudev-dev make >/dev/null 2>&1 || true
-    if curl -fsSL -o /tmp/diag.tar.gz https://github.com/linux-msm/diag/archive/refs/heads/master.tar.gz; then
-        tar -C /tmp -xzf /tmp/diag.tar.gz 2>/dev/null || true
-        ( cd /tmp/diag-master 2>/dev/null && make HAVE_LIBQRTR=0 CC=gcc >/tmp/diag-build.log 2>&1 ) || true
-        if [ -x /tmp/diag-master/diag-router ]; then
-            install -m 755 /tmp/diag-master/diag-router /usr/local/bin/diag-router
-            echo "     diag-router 安装完成"
-        else
-            echo "!! diag-router 编译失败(imei.sh 的 set 功能将不可用)"; tail -15 /tmp/diag-build.log 2>/dev/null || true
-        fi
+    # 二进制是 prebuilt/diag-router(CI 里用 qemu+arm64 容器编好,已提交进仓库);build.sh 提前拷入
+    if [ -x /usr/local/bin/diag-router ]; then
+        echo "  -> diag-router 已就位(IMEI 改号可用)"
     else
-        echo "!! 下载 diag-router 失败"
+        echo "!! 缺 /usr/local/bin/diag-router(imei.sh 只能备份/恢复)"
     fi
-    apt-get -y -q purge --auto-remove gcc libudev-dev make >/dev/null 2>&1 || true
-    rm -rf /tmp/diag-master /tmp/diag.tar.gz /tmp/diag-build.log
 else
     echo "  -> 无基带:删 modem/GPS 固件,屏蔽相关服务"
     rm -rf /usr/lib/firmware/modem.* /usr/lib/firmware/mba.mbn \

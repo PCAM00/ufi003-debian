@@ -102,6 +102,11 @@ for d in lib bin sbin lib64; do
     fi
 done
 [ -e "${WORK}/lib/ld-linux-aarch64.so.1" ] || { echo "!! 动态加载器丢失:${WORK}/lib/ld-linux-aarch64.so.1" >&2; exit 1; }
+# diag-router 用仓库里的 prebuilt(不在 chroot 里现场编)
+if [ -f ../prebuilt/diag-router ]; then
+    install -D -m 755 ../prebuilt/diag-router "${WORK}/usr/local/bin/diag-router"
+    echo "    diag-router(prebuilt) 已拷入"
+fi
 chmod 600 "${WORK}"/etc/NetworkManager/system-connections/*.nmconnection
 chmod 755 "${WORK}/root/usb-mode.sh" "${WORK}/root/imei.sh" \
           "${WORK}/usr/bin/rpmsgexport" "${WORK}/usr/local/share/diag-tools/"*.py
