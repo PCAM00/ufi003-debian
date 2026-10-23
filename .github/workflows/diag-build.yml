@@ -1,0 +1,50 @@
+name: diag-router prebuilt
+
+# 一次性用:在 QEMU 里跑 arm64 Debian 13 容器编 diag-router,产出 prebuilt 二进制。
+# 编好后下载 artifact,提交到 prebuilt/diag-router,固件构建直接拷进 rootfs,
+# 不再在 chroot 里现场编译(省时、可复现)。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: 在 arm64 Debian 13 容器里编 diag-router
+        run: |
+          mkdir -p prebuilt
+          docker run --rm --platform linux/arm64 \
+            -v "$PWD/prebuilt:/out" -w /src \
+            debian:13 bash -c '
+              set -e
+              apt-get update -qq
+              apt-get install -y -qq --no-install-recommends gcc make libudev-dev curl ca-certificates
+              curl -fsSL -o /tmp/d.tgz https://github.com/linux-msm/diag/archive/refs/heads/master.tar.gz
+              tar -C /tmp -xzf /tmp/d.tgz
+              cd /tmp/diag-*/
+              make HAVE_LIBQRTR=0 CC=gcc
+              ls -l diag-router
+              cp diag-router /out/diag-router
+              chmod 755 /out/diag-router
+            '
+          ls -l prebuilt/
+
+      - name: 检查产物
+        run: |
+          file prebuilt/diag-router || true
+          readelf -l prebuilt/diag-router | grep -i interpreter || true
+          readelf -d prebuilt/diag-router | grep NEEDED || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: diag-router-prebuilt
+          path: prebuilt/diag-router
