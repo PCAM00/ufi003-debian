@@ -66,15 +66,30 @@ jobs:
         id: version
         run: |
           VER="$(cat rootfs/debian_version)"
-          TAG_NM="$VER-${{ github.run_number }}-nomodem"
           TAG_M="$VER-${{ github.run_number }}-modem"
-          git tag "$TAG_NM"
           git tag "$TAG_M"
+          if [ "${{ inputs.skip_nomodem }}" != "true" ]; then
+            TAG_NM="$VER-${{ github.run_number }}-nomodem"
+            git tag "$TAG_NM"
+            echo "TAG_NM=$TAG_NM" >> "$GITHUB_OUTPUT"
+            cat rootfs/info-nomodem.md
+          fi
           git push origin --tags
           echo "VER=$VER" >> "$GITHUB_OUTPUT"
-          echo "TAG_NM=$TAG_NM" >> "$GITHUB_OUTPUT"
           echo "TAG_M=$TAG_M" >> "$GITHUB_OUTPUT"
-          cat rootfs/info-nomodem.md
+
+      - name: 上传产物 artifact(release 失败也能取到)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ufi003-${{ github.run_number }}
+          path: |
+            rootfs/rootfs*.img.xz
+            rootfs/verify-*.txt
+            rootfs/info-*.md
+            kernel/*.img
+            aboot/emmc_appsboot-test-signed.mbn
+          if-no-files-found: warn
 
       - name: Release nomodem
         if: ${{ !inputs.skip_nomodem }}
