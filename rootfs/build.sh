@@ -110,7 +110,7 @@ trap - EXIT
 echo "=============================================================="
 echo "[6/7] 收集构建信息"
 echo "=============================================================="
-if [ "$VARIANT" = "nomodem" ]; then cp "${WORK}/etc/debian_version" ./; fi
+cp "${WORK}/etc/debian_version" ./
 mv -f "${WORK}/tmp/info.md"    "./info-${VARIANT}.md"
 mv -f "${WORK}/tmp/verify.txt" "./verify-${VARIANT}.txt"
 echo >> "info-${VARIANT}.md"

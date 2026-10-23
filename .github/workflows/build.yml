@@ -4,6 +4,11 @@ on:
   push:
     branches: [ master, main ]
   workflow_dispatch:
+    inputs:
+      skip_nomodem:
+        description: '只构建 modem 变体(跳过 nomodem,省一小时)'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -31,6 +36,7 @@ jobs:
         run: git config --global --add safe.directory "$(pwd)"
 
       - name: Build rootfs (nomodem)
+        if: ${{ !inputs.skip_nomodem }}
         run: |
           cd rootfs
           sudo VARIANT=nomodem ./build.sh
@@ -71,6 +77,7 @@ jobs:
           cat rootfs/info-nomodem.md
 
       - name: Release nomodem
+        if: ${{ !inputs.skip_nomodem }}
         uses: softprops/action-gh-release@v2
         with:
           name: Debian ${{ steps.version.outputs.VER }} for UFI003 (no-modem, 1.2GHz OC)
