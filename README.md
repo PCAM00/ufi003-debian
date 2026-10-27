@@ -1,8 +1,15 @@
 # ufi003-debian(定制版)
 
-适用于 **UFI003_MB_V02**(MSM8916 / 骁龙410 / 512MB RAM / 4GB eMMC)的 Debian 固件构建。
-上游:[KyonLi/ufi003-debian](https://github.com/KyonLi/ufi003-debian),内核来自
-[KyonLi/ufi003-kernel](https://github.com/KyonLi/ufi003-kernel)。
+适用于 MSM8916 / 骁龙410 的 4G 上网棒,目前**只编两块板子**:
+
+| 板子 | 型号 | compatible |
+| --- | --- | --- |
+| **ufi003** | UFI003 4G Modem Stick | `thwc,ufi003` |
+| **jz02** | jz02-v10 4G Modem Stick | `thwc,jz02v10` |
+
+上游:[KyonLi/ufi003-debian](https://github.com/KyonLi/ufi003-debian);
+内核用本仓库配套的 fork **[PCAM00/ufi003-kernel](https://github.com/PCAM00/ufi003-kernel)**
+(release `kernel-gpu-1`,见下方 GPU 说明)。
 
 改过的部分见 `overlay/`(配置与脚本)、`rootfs/chroot.sh`(装包与定制)、
 `deb-pkgs/repack-nomodem.sh`(精简官方 deb)。
@@ -12,7 +19,8 @@
 | 项目 | 做法 |
 | --- | --- |
 | 发行版 | Debian **13 (trixie)** arm64 |
-| 超频 | 直接用 `boot-no-modem-oc.img`,CPU 超到 **1.2GHz** |
+| 超频 | 每块板子单独出 boot:`boot-<board>-oc.img` 把 DTB 加上 3 档 OPP(1094.4/1152/1209.6MHz)→ **1.2GHz** |
+| **GPU** | 内核开 `CONFIG_DRM_MSM=m` + headless 补丁,DTB 里 `&gpu` 开启 → `/dev/dri/renderD128`(Adreno 306,OpenGL ES 3.0) |
 | modem / GPS | **两种变体**:no-modem = 去掉(no-modem 内核 + 删固件 + 不装 modemmanager/rmtfs/qrtr-tools + 屏蔽相关服务);modem = 带基带(完整固件 + ModemManager + rmtfs + qrtr-tools)。两版都屏蔽 `openstick-startup-diagnose`(离线自动拉热点,不要) |
 | apt 源 | **仅阿里云**(`mirrors.aliyun.com`) |
 | USB Gadget | `rndis` + `ffs(adb)`;RNDIS = 静态 **10.42.0.1/24**(对端设 10.42.0.2/24,不做 NAT) |
@@ -24,17 +32,39 @@
 | 精简 | 不装推荐包、不落 doc/man/info/locale;装 `net-tools`(ifconfig)、curl、nano、less、usbutils、rsync;zram 300%;journal 上限 32M |
 | 主从切换 | `/root/usb-mode.sh host\|gadget\|status` |
 
-## 两种变体(每次构建出两个 release)
+## 两块板子(每次构建出两个 release)
 
-| 变体 | boot 镜像 | rootfs | 说明 |
+| release | boot 镜像 | rootfs | 说明 |
 | --- | --- | --- | --- |
-| **no-modem**(默认) | `boot.img` / `boot-no-modem-oc.img` | `rootfs.img.xz` | 去 modem/GPS + 1.2GHz,不插卡 |
-| **modem(带基带)** | `boot-oc-modem.img`(1.2GHz)/ `boot-modem.img`(原频兜底) | `rootfs-modem.img.xz` | 保留 modem 固件 + ModemManager + rmtfs,插卡可 4G;带 `/root/imei.sh` |
+| `…-ufi003` | `boot-ufi003-oc.img`(1.2GHz)/ `boot-ufi003.img`(原频兜底) | `rootfs.img.xz` | UFI003,带基带 |
+| `…-jz02` | `boot-jz02-oc.img`(1.2GHz)/ `boot-jz02.img`(原频兜底) | `rootfs-jz02.img.xz` | jz02-v10,带基带 |
 
-带基带版的 1.2GHz 镜像是 CI 里现场打的(`.github/build-oc-modem.sh`):
-把官方 modem DTB 加 3 档 OPP(1094.4 / 1152 / 1209.6 MHz)后重新拼 boot 镜像。
+两块都是 **modem(带基带)** 变体:保留完整基带固件 + ModemManager + rmtfs + qrtr-tools,
+带 `/root/imei.sh` 与 `/root/nasdump.py(信令抓取)`。
 
-每个 release 附件:`emmc_appsboot-test-signed.mbn`(lk2nd,best-effort)、`verify-*.txt`(构建校验)、`info-*.md`(摘要)。
+boot 镜像由 `.github/build-oc-modem.sh` 按板子生成:DTB 从内核 deb 里取,
+加 3 档 OPP 后与内核 release 的 Image.gz/ramdisk 重新拼装(纯 Python 打包,带 SHA1 id)。
+
+每个 release 附件:`emmc_appsboot-test-signed.mbn`(lk2nd,best-effort)、`verify-<board>.txt`、`info-<board>.md`。
+
+## Adreno 306 headless GPU
+
+无屏板子的 MDSS 是 disabled,MSM DRM 的 Adreno 就一直等不到 master。本固件在内核里解决:
+
+1. `ufi003_defconfig` 开 `CONFIG_DRM_MSM=m`(它 select `DRM_SCHED`)
+2. `adreno_device.c` 打 [headless 补丁](https://github.com/nerv-notebook/msm8916-headless-gpu):
+   mdss 缺失/disabled 时自主注册 dummy msm master
+3. DTB 里 `&gpu { status = "okay" }`
+4. rootfs 装 Mesa freedreno 用户态 + `/etc/modules-load.d/gpu.conf`(自动加载 `msm`)
+
+验证:
+
+```sh
+ls /dev/dri/                       # 期望 card1 + renderD128
+dmesg | grep -iE 'adreno|msm .*gpu'
+python3 /root/gpu-test/test_adreno_3d.py
+python3 /root/gpu-test/benchmark_gpu.py
+```
 
 ## 默认账号与地址
 
@@ -54,7 +84,7 @@
 /root/imei.sh backup          # 备份 modemst1/modemst2 到 /root/imei-backup
 ```
 
-改号链路:modem → rpmsg(`hexagon`)→ `diag-router`(CI 里现场编好)→ `/usr/local/share/diag-tools/diag-nv.py`。
+改号链路:modem → rpmsg(`hexagon`)→ `diag-router`(prebuilt,glibc aarch64)→ `/usr/local/share/diag-tools/diag-nv.py`。
 需要 modem 已加载;modem 重启后 `systemctl restart diag-router`。
 ⚠️ 改 IMEI 在多数地区受监管,请只对自己的设备、自担风险;先 backup 再动手。
 
