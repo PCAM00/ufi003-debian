@@ -39,6 +39,7 @@ apt-get -y install --no-install-recommends \
     openssh-server \
     zram-tools fake-hwclock systemd-timesyncd \
     iproute2 iputils-ping curl nano less usbutils rsync \
+    libdrm-freedreno1 libgbm1 libegl-mesa0 libgles2 python3 \
     $EXTRA
 
 echo "=============================================================="
@@ -206,12 +207,14 @@ cat /tmp/verify.txt
 rm -f /tmp/*.deb
 
 vmlinuz_name=$(basename /boot/vmlinuz-*)
+BOARD_NAME="${BOARD:-ufi003}"
 if [ "$VARIANT" = "modem" ]; then
-    KDESC="boot-modem.img(带基带,原频) / boot-oc-modem.img(带基带 + 1.2GHz)"
+    KDESC="boot-$BOARD_NAME.img(带基带,原频)/ boot-$BOARD_NAME-oc.img(带基带 + 1.2GHz + Adreno headless GPU)"
 else
     KDESC="boot-no-modem-oc.img(去 modem/GPS + 超频 1.2GHz)"
 fi
 cat <<EOF > /tmp/info.md
+- 板子: ${BOARD:-ufi003}
 - 变体: $VARIANT
 - 发行版: Debian $(cat /etc/debian_version) (trixie) arm64,已精简
 - 内核版本: ${vmlinuz_name#*-}   ($KDESC)

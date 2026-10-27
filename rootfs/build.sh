@@ -12,25 +12,30 @@
 set -e
 set -o pipefail
 
-VARIANT="${VARIANT:-nomodem}"
+VARIANT="${VARIANT:-modem}"          # nomodem | modem
+BOARD="${BOARD:-ufi003}"              # ufi003 | jz02
+case "$BOARD" in
+    ufi003) DTB_NAME=msm8916-thwc-ufi003 ;;
+    jz02)   DTB_NAME=msm8916-thwc-jz02v10 ;;
+    *) echo "未知 BOARD: $BOARD(ufi003 | jz02)"; exit 1 ;;
+esac
 DIST=trixie
 # 构建期用 Debian 官方源:CI runner 在海外,debootstrap 是"一个包一次 wget",
 # 从阿里云拉会慢到离谱。★ 成品系统里的 apt 源仍然是「只有阿里云」,
 # 由 overlay/etc/apt/sources.list 覆盖,与这里无关。
 BOOTSTRAP_MIRROR="http://deb.debian.org/debian"
 
-KERNEL_TAG=6.12.49-1
-KERNEL_BASE="https://github.com/KyonLi/ufi003-kernel/releases/download/${KERNEL_TAG}"
-BOOT_OC_URL="${KERNEL_BASE}/boot-no-modem-oc.img"   # 无基带 + 1.2GHz
-BOOT_MODEM_URL="${KERNEL_BASE}/boot.img"            # 带基带(原频;1.2GHz 版由 .github/build-oc-modem.sh 另打)
-K_IMAGE_DEB_URL="${KERNEL_BASE}/linux-image-6.12.49-msm8916-g93a71ee9468d_6.12.49-g93a71ee9468d-1_arm64.deb"
-K_DEV_URL="https://github.com/KyonLi/ufi003-kernel/releases/tag/${KERNEL_TAG}"
+KERNEL_TAG="${KERNEL_TAG:-kernel-gpu-1}"
+KERNEL_BASE="https://github.com/PCAM00/ufi003-kernel/releases/download/${KERNEL_TAG}"
+BOOT_OC_URL="${KERNEL_BASE}/boot-no-modem-oc.img"   # 无基带 + 1.2GHz(ufi003)
+BOOT_MODEM_URL="${KERNEL_BASE}/boot.img"            # 带基带(原频)
+K_DEV_URL="https://github.com/PCAM00/ufi003-kernel/releases/tag/${KERNEL_TAG}"
 UUID=62ae670d-01b7-4c7d-8e72-60bcd00410b7
 
 BASE="debian-base"            # 只做一次 debootstrap 的干净底
 WORK="debian-${VARIANT}"      # 本次定制的工作目录
-IMG_OUT="rootfs.img"          # nomodem 保持原名
-if [ "$VARIANT" = "modem" ]; then IMG_OUT="rootfs-modem.img"; fi
+IMG_OUT="rootfs.img"                       # ufi003 保持原名
+if [ "$BOARD" = "jz02" ]; then IMG_OUT="rootfs-jz02.img"; fi
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "Please run as root"
@@ -45,13 +50,20 @@ echo "=============================================================="
 mkdir -p ../kernel
 rm -rf build "${WORK}" "${IMG_OUT}" debian-ufi003.img
 if [ "$VARIANT" = "modem" ]; then
-    wget -O ../kernel/boot-modem.img "$BOOT_MODEM_URL"
+    wget -q -O ../kernel/boot-modem.img "$BOOT_MODEM_URL"
 else
-    wget -O ../kernel/boot.img             "$BOOT_OC_URL"
-    wget -O ../kernel/boot-no-modem-oc.img "$BOOT_OC_URL"
+    wget -q -O ../kernel/boot.img             "$BOOT_OC_URL"
+    wget -q -O ../kernel/boot-no-modem-oc.img "$BOOT_OC_URL"
 fi
 if [ ! -f ../kernel/linux-image-*.deb ]; then
-    wget -P ../kernel "$K_IMAGE_DEB_URL"
+    DEB=$(curl -fsSL "https://api.github.com/repos/PCAM00/ufi003-kernel/releases/tags/${KERNEL_TAG}" \
+        | python3 -c "import sys,json;print(next(a['name'] for a in json.load(sys.stdin)['assets'] if a['name'].startswith('linux-image-')))")
+    echo "    内核 deb:$DEB"
+    wget -q -P ../kernel "${KERNEL_BASE}/$DEB"
+fi
+# 按板子生成 boot(原频 + 1.2GHz),产物 kernel/boot-$BOARD*.img
+if [ "$VARIANT" = "modem" ] && [ ! -f "../kernel/boot-${BOARD}-oc.img" ]; then
+    BOARD="$BOARD" DTB_NAME="$DTB_NAME" KERNEL_TAG="$KERNEL_TAG" bash ../.github/build-oc-modem.sh
 fi
 
 echo "=============================================================="
@@ -113,7 +125,7 @@ chmod 755 "${WORK}/root/usb-mode.sh" "${WORK}/root/imei.sh" \
 chmod 700 "${WORK}/root"
 
 echo "=============================================================="
-echo "[5/7] chroot 内定制(VARIANT=${VARIANT})"
+echo "[5/7] chroot 内定制(VARIANT=${VARIANT} BOARD=${BOARD} DTB=${DTB_NAME})"
 echo "=============================================================="
 for d in proc dev dev/pts sys; do mount --bind "/$d" "${WORK}/$d"; done
 trap 'for d in proc dev/pts dev sys; do umount "${WORK}/$d" 2>/dev/null || true; done' EXIT
@@ -125,10 +137,10 @@ echo "=============================================================="
 echo "[6/7] 收集构建信息"
 echo "=============================================================="
 cp "${WORK}/etc/debian_version" ./
-mv -f "${WORK}/tmp/info.md"    "./info-${VARIANT}.md"
-mv -f "${WORK}/tmp/verify.txt" "./verify-${VARIANT}.txt"
-echo >> "info-${VARIANT}.md"
-echo "🔗 [linux-headers & linux-libc-dev]($K_DEV_URL)" >> "info-${VARIANT}.md"
+mv -f "${WORK}/tmp/info.md"    "./info-${BOARD}.md"
+mv -f "${WORK}/tmp/verify.txt" "./verify-${BOARD}.txt"
+echo >> "info-${BOARD}.md"
+echo "🔗 [linux-headers & linux-libc-dev]($K_DEV_URL)" >> "info-${BOARD}.md"
 rm -rf "${WORK}"/tmp/* "${WORK}/root/.bash_history"
 
 echo "=============================================================="
@@ -145,4 +157,4 @@ umount build
 img2simg debian-ufi003.img "${IMG_OUT}"
 rm -rf debian-ufi003.img build
 ls -lh "${IMG_OUT}"
-echo "==> 构建完成(VARIANT=${VARIANT})"
+echo "==> 构建完成(BOARD=${BOARD} VARIANT=${VARIANT})"

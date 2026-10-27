@@ -1,29 +1,24 @@
 name: Build debian
 
+# 只做两块板子:UFI003 与 JZ02(带基带 + 1.2GHz + Adreno 306 headless GPU)
 on:
   push:
     branches: [ master, main ]
   workflow_dispatch:
-    inputs:
-      skip_nomodem:
-        description: '只构建 modem 变体(跳过 nomodem,省一小时)'
-        type: boolean
-        default: false
 
 permissions:
   contents: write
 
 jobs:
   build:
-    name: Build debian rootfs (nomodem + modem) + bootloader
+    name: Build UFI003 / JZ02 firmware (modem + 1.2GHz + headless GPU)
     runs-on: ubuntu-latest
     steps:
       - name: Prepare
         run: |
           sudo apt-get -y update
           sudo apt-get -y install debootstrap debian-archive-keyring binfmt-support qemu-user-static android-sdk-libsparse-utils
-          sudo apt-get -y install gcc-arm-none-eabi device-tree-compiler python3-pycryptodome mkbootimg
-          # 腾点磁盘(arm64 chroot 走 qemu,两套 rootfs + xz 比较吃空间)
+          sudo apt-get -y install gcc-arm-none-eabi device-tree-compiler python3-pycryptodome curl xz-utils
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost || true
           df -h /
 
@@ -35,25 +30,19 @@ jobs:
       - name: Prepare repository
         run: git config --global --add safe.directory "$(pwd)"
 
-      - name: Build rootfs (nomodem)
-        if: ${{ !inputs.skip_nomodem }}
+      - name: Build rootfs (ufi003)
         run: |
           cd rootfs
-          sudo VARIANT=nomodem ./build.sh
+          sudo VARIANT=modem BOARD=ufi003 ./build.sh
           sudo xz -T0 rootfs.img
-          ls -lh rootfs.img.xz verify-nomodem.txt
+          ls -lh rootfs.img.xz verify-ufi003.txt
 
-      - name: Build rootfs (modem)
+      - name: Build rootfs (jz02)
         run: |
           cd rootfs
-          sudo VARIANT=modem ./build.sh
-          sudo xz -T0 rootfs-modem.img
-          ls -lh rootfs-modem.img.xz verify-modem.txt
-
-      - name: Build boot-oc-modem.img (带基带 + 1.2GHz)
-        continue-on-error: true
-        run: |
-          sudo bash .github/build-oc-modem.sh
+          sudo VARIANT=modem BOARD=jz02 ./build.sh
+          sudo xz -T0 rootfs-jz02.img
+          ls -lh rootfs-jz02.img.xz verify-jz02.txt
 
       - name: Build bootloader (lk2nd)
         continue-on-error: true
@@ -66,17 +55,10 @@ jobs:
         id: version
         run: |
           VER="$(cat rootfs/debian_version)"
-          TAG_M="$VER-${{ github.run_number }}-modem"
-          git tag "$TAG_M"
-          if [ "${{ inputs.skip_nomodem }}" != "true" ]; then
-            TAG_NM="$VER-${{ github.run_number }}-nomodem"
-            git tag "$TAG_NM"
-            echo "TAG_NM=$TAG_NM" >> "$GITHUB_OUTPUT"
-            cat rootfs/info-nomodem.md
-          fi
+          git tag "$VER-${{ github.run_number }}-ufi003"
+          git tag "$VER-${{ github.run_number }}-jz02"
           git push origin --tags
           echo "VER=$VER" >> "$GITHUB_OUTPUT"
-          echo "TAG_M=$TAG_M" >> "$GITHUB_OUTPUT"
 
       - name: 上传产物 artifact(release 失败也能取到)
         if: always()
@@ -87,37 +69,36 @@ jobs:
             rootfs/rootfs*.img.xz
             rootfs/verify-*.txt
             rootfs/info-*.md
-            kernel/*.img
+            kernel/boot-*.img
             aboot/emmc_appsboot-test-signed.mbn
           if-no-files-found: warn
 
-      - name: Release nomodem
-        if: ${{ !inputs.skip_nomodem }}
+      - name: Release ufi003
         uses: softprops/action-gh-release@v2
         with:
-          name: Debian ${{ steps.version.outputs.VER }} for UFI003 (no-modem, 1.2GHz OC)
-          body_path: rootfs/info-nomodem.md
-          tag_name: ${{ steps.version.outputs.TAG_NM }}
+          name: ${{ steps.version.outputs.VER }} UFI003 (modem + 1.2GHz + headless GPU)
+          body_path: rootfs/info-ufi003.md
+          tag_name: ${{ steps.version.outputs.VER }}-${{ github.run_number }}-ufi003
           fail_on_unmatched_files: false
           files: |
             aboot/emmc_appsboot-test-signed.mbn
-            kernel/boot.img
-            kernel/boot-no-modem-oc.img
+            kernel/boot-ufi003-oc.img
+            kernel/boot-ufi003.img
             rootfs/rootfs.img.xz
-            rootfs/verify-nomodem.txt
-            rootfs/info-nomodem.md
+            rootfs/verify-ufi003.txt
+            rootfs/info-ufi003.md
 
-      - name: Release modem
+      - name: Release jz02
         uses: softprops/action-gh-release@v2
         with:
-          name: Debian ${{ steps.version.outputs.VER }} for UFI003 (带基带, 1.2GHz OC)
-          body_path: rootfs/info-modem.md
-          tag_name: ${{ steps.version.outputs.TAG_M }}
+          name: ${{ steps.version.outputs.VER }} JZ02 (modem + 1.2GHz + headless GPU)
+          body_path: rootfs/info-jz02.md
+          tag_name: ${{ steps.version.outputs.VER }}-${{ github.run_number }}-jz02
           fail_on_unmatched_files: false
           files: |
             aboot/emmc_appsboot-test-signed.mbn
-            kernel/boot-oc-modem.img
-            kernel/boot-modem.img
-            rootfs/rootfs-modem.img.xz
-            rootfs/verify-modem.txt
-            rootfs/info-modem.md
+            kernel/boot-jz02-oc.img
+            kernel/boot-jz02.img
+            rootfs/rootfs-jz02.img.xz
+            rootfs/verify-jz02.txt
+            rootfs/info-jz02.md
