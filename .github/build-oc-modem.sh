@@ -139,8 +139,12 @@ def pack(dtb_bytes, out):
 
 stock = pack(open('board.dtb', 'rb').read(),    'boot-stock.img')
 oc    = pack(open('board-oc.dtb', 'rb').read(), 'boot-oc-modem.img')
-assert len(oc) != len(stock)
-print('结构校验通过')
+assert oc != stock, 'oc 与原频镜像内容相同,OPP 没生效'
+# 按内容校验(不能按大小:去基带删节点会抵消加 OPP 带来的增长)
+OPP_MARK = bytes.fromhex('48190800')      # 1209600000 的低 4 字节
+assert OPP_MARK in oc,    'oc 镜像里没有 1.2GHz OPP'
+assert OPP_MARK not in stock, '原频镜像里不该有 1.2GHz OPP'
+print('结构校验通过(OPP 标记已确认)')
 PY
 
 echo "==> [4/4] 拷出"

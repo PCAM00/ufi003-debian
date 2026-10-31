@@ -30,6 +30,15 @@ jobs:
       - name: Prepare repository
         run: git config --global --add safe.directory "$(pwd)"
 
+      - name: Build boot images (两块板 × 两种变体,先跑以便快速失败)
+        run: |
+          for b in "ufi003 msm8916-thwc-ufi003" "jz02 msm8916-thwc-jz02v10"; do
+            set -- $b
+            BOARD=$1 DTB_NAME=$2 NOMODEM=0 bash .github/build-oc-modem.sh
+            BOARD=$1 DTB_NAME=$2 NOMODEM=1 bash .github/build-oc-modem.sh
+          done
+          ls -lh kernel/boot-*.img
+
       - name: Build rootfs (modem)
         run: |
           cd rootfs
@@ -43,15 +52,6 @@ jobs:
           sudo VARIANT=nomodem BOARD=ufi003 ./build.sh
           sudo xz -T0 rootfs-nomodem.img
           ls -lh rootfs-nomodem.img.xz verify-nomodem.txt
-
-      - name: Build boot images (两块板 × 两种变体)
-        run: |
-          for b in "ufi003 msm8916-thwc-ufi003" "jz02 msm8916-thwc-jz02v10"; do
-            set -- $b
-            BOARD=$1 DTB_NAME=$2 NOMODEM=0 bash .github/build-oc-modem.sh
-            BOARD=$1 DTB_NAME=$2 NOMODEM=1 bash .github/build-oc-modem.sh
-          done
-          ls -lh kernel/boot-*.img
 
       - name: Build bootloader (lk2nd)
         continue-on-error: true
