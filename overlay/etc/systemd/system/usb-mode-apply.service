@@ -1,0 +1,14 @@
+[Unit]
+Description=Apply persisted USB role (host/gadget) at boot
+After=multi-user.target openstick-gc-startup.service
+Wants=openstick-gc-startup.service
+ConditionPathExists=/etc/usb-mode.role
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/root/usb-mode.sh apply
+TimeoutStartSec=60
+
+[Install]
+WantedBy=multi-user.target

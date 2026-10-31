@@ -106,7 +106,7 @@ fi
 
 # 该开的服务:ssh / NetworkManager / zram / gadget 与首次扩容
 systemctl enable ssh.service NetworkManager.service zramswap.service 2>/dev/null || true
-systemctl enable openstick-gc-startup.service openstick-button-monitor.service \
+systemctl enable openstick-gc-startup.service usb-mode-apply.service openstick-button-monitor.service \
                  openstick-expanddisk-startup.service \
                  regenerate-ssh-host-keys.service 2>/dev/null || true
 if [ "$VARIANT" = "modem" ]; then
