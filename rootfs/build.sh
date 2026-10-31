@@ -34,8 +34,8 @@ UUID=62ae670d-01b7-4c7d-8e72-60bcd00410b7
 
 BASE="debian-base"            # 只做一次 debootstrap 的干净底
 WORK="debian-${VARIANT}"      # 本次定制的工作目录
-IMG_OUT="rootfs.img"                       # ufi003 保持原名
-if [ "$BOARD" = "jz02" ]; then IMG_OUT="rootfs-jz02.img"; fi
+IMG_OUT="rootfs.img"                                   # 带基带
+[ "$VARIANT" = "nomodem" ] && IMG_OUT="rootfs-nomodem.img"   # 无基带
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "Please run as root"
@@ -49,11 +49,10 @@ echo "[1/7] 内核 boot 镜像与内核 deb"
 echo "=============================================================="
 mkdir -p ../kernel
 rm -rf build "${WORK}" "${IMG_OUT}" debian-ufi003.img
-if [ "$VARIANT" = "modem" ]; then
-    wget -q -O ../kernel/boot-modem.img "$BOOT_MODEM_URL"
-else
-    wget -q -O ../kernel/boot.img             "$BOOT_OC_URL"
-    wget -q -O ../kernel/boot-no-modem-oc.img "$BOOT_OC_URL"
+# 两种变体都用同一个内核 base boot(带 modem 的 boot.img 只作 Image/ramdisk 来源)
+if [ ! -s ../kernel/boot-base.img ]; then
+    rm -f ../kernel/boot-modem.img
+    wget -q -O ../kernel/boot-base.img "$BOOT_MODEM_URL"
 fi
 if [ ! -f ../kernel/linux-image-*.deb ]; then
     DEB=$(curl -fsSL "https://api.github.com/repos/PCAM00/ufi003-kernel/releases/tags/${KERNEL_TAG}" \
@@ -61,9 +60,13 @@ if [ ! -f ../kernel/linux-image-*.deb ]; then
     echo "    内核 deb:$DEB"
     wget -q -P ../kernel "${KERNEL_BASE}/$DEB"
 fi
-# 按板子生成 boot(原频 + 1.2GHz),产物 kernel/boot-$BOARD*.img
-if [ "$VARIANT" = "modem" ] && [ ! -f "../kernel/boot-${BOARD}-oc.img" ]; then
-    BOARD="$BOARD" DTB_NAME="$DTB_NAME" KERNEL_TAG="$KERNEL_TAG" bash ../.github/build-oc-modem.sh
+# 按 板子+变体 生成 boot(原频 + 1.2GHz)
+BOOT_SUF="$BOARD"
+[ "$VARIANT" = "nomodem" ] && BOOT_SUF="${BOARD}-nomodem"
+if [ ! -f "../kernel/boot-${BOOT_SUF}-oc.img" ]; then
+    NM=0; [ "$VARIANT" = "nomodem" ] && NM=1
+    BOARD="$BOARD" DTB_NAME="$DTB_NAME" NOMODEM="$NM" KERNEL_TAG="$KERNEL_TAG" \
+        bash ../.github/build-oc-modem.sh
 fi
 
 echo "=============================================================="
@@ -137,10 +140,10 @@ echo "=============================================================="
 echo "[6/7] 收集构建信息"
 echo "=============================================================="
 cp "${WORK}/etc/debian_version" ./
-mv -f "${WORK}/tmp/info.md"    "./info-${BOARD}.md"
-mv -f "${WORK}/tmp/verify.txt" "./verify-${BOARD}.txt"
-echo >> "info-${BOARD}.md"
-echo "🔗 [linux-headers & linux-libc-dev]($K_DEV_URL)" >> "info-${BOARD}.md"
+mv -f "${WORK}/tmp/info.md"    "./info-${VARIANT}.md"
+mv -f "${WORK}/tmp/verify.txt" "./verify-${VARIANT}.txt"
+echo >> "info-${VARIANT}.md"
+echo "🔗 [linux-headers & linux-libc-dev]($K_DEV_URL)" >> "info-${VARIANT}.md"
 rm -rf "${WORK}"/tmp/* "${WORK}/root/.bash_history"
 
 echo "=============================================================="

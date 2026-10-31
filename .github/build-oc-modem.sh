@@ -16,6 +16,7 @@ KERNEL_TAG="${KERNEL_TAG:-kernel-gpu-1}"
 BASE="${KERNEL_BASE:-https://github.com/PCAM00/ufi003-kernel/releases/download/${KERNEL_TAG}}"
 BOARD="${BOARD:-ufi003}"
 DTB_NAME="${DTB_NAME:-msm8916-thwc-ufi003}"
+NOMODEM="${NOMODEM:-0}"      # 1 = 去掉基带:删掉 DTB 里的 mpss 保留内存区
 DL="${DL_PREFIX:-}"
 
 cd "$(dirname "$0")/.."
@@ -54,16 +55,48 @@ PY
 
 echo "==> [3/4] 生成 1.2GHz DTB 并重打包两个 boot"
 dtc -I dtb -O dts board.dtb -o board.dts
-python3 - <<'PY'
-import re
+NOMODEM="$NOMODEM" python3 - <<'PY'
+import os, re
+nomodem = os.environ.get('NOMODEM', '0') == '1'
 src = open('board.dts', encoding='utf-8').read()
-m = re.search(r'\n(\s*)opp-998400000 \{\n\s+opp-hz = <0x00 0x3b826000>;\n(\s*)\};', src)
-assert m, '没找到 opp-998400000 锚点'
-ind = m.group(1)
-add = ''.join(f'\n{ind}opp-{hz} {{\n{ind}\topp-hz = <0x00 0x{hz:x}>;\n{ind}}};'
-              for hz in (1094400000, 1152000000, 1209600000))
-open('board.dts', 'w', encoding='utf-8').write(src[:m.end()] + add + src[m.end():])
-print('已插入 3 档 OPP')
+
+def drop_node(text, name):
+    """删除 name { ... } 整个块(按花括号配对)"""
+    m = re.search(r'\n(\s*)' + re.escape(name) + r' \{', text)
+    if not m:
+        return text, False
+    i = text.index('{', m.start())
+    depth = 0
+    for j in range(i, len(text)):
+        if text[j] == '{': depth += 1
+        elif text[j] == '}':
+            depth -= 1
+            if depth == 0:
+                # 连同前面的空白和后面的分号一起删
+                end = j + 1
+                if end < len(text) and text[end] == ';': end += 1
+                while end < len(text) and text[end] == '\n': end += 1
+                return text[:m.start()] + '\n' + text[end:], True
+    return text, False
+
+if nomodem:
+    # 去基带的关键:删掉 mpss 保留内存区(modem remoteproc 会 probe 失败)
+    for node in ('mpss@86800000', 'mpss@0'):
+        src, ok = drop_node(src, node)
+        print(f'  去基带: {"已删除 " + node if ok else node + " 不存在"}')
+
+# 加 3 档 OPP(1.2GHz)——幂等:若已存在就跳过
+if 'opp-1209600000' in src:
+    print('DTB 里已有 1.2GHz OPP,跳过插入')
+else:
+    m = re.search(r'\n(\s*)opp-998400000 \{\n\s+opp-hz = <0x00 0x3b826000>;\n(\s*)\};', src)
+    assert m, '没找到 opp-998400000 锚点'
+    ind = m.group(1)
+    add = ''.join(f'\n{ind}opp-{hz} {{\n{ind}\topp-hz = <0x00 0x{hz:x}>;\n{ind}}};'
+                  for hz in (1094400000, 1152000000, 1209600000))
+    src = src[:m.end()] + add + src[m.end():]
+    print('已插入 3 档 OPP')
+open('board.dts', 'w', encoding='utf-8').write(src)
 PY
 dtc -I dts -O dtb board.dts -o board-oc.dtb
 # 注意:不能用 "xxx | grep -q"(grep -q 命中即关管道 -> 上游 SIGPIPE,pipefail 判失败)
@@ -111,8 +144,9 @@ print('结构校验通过')
 PY
 
 echo "==> [4/4] 拷出"
-cp boot-oc-modem.img "$OUT/boot-$BOARD-oc.img"
-cp boot-stock.img    "$OUT/boot-$BOARD.img"
-ls -l "$OUT"/boot-"$BOARD"*.img
-md5sum "$OUT"/boot-"$BOARD"*.img
-echo "==> 完成: BOARD=$BOARD"
+SUF="$BOARD"; [ "$NOMODEM" = "1" ] && SUF="$BOARD-nomodem"
+cp boot-oc-modem.img "$OUT/boot-$SUF-oc.img"
+cp boot-stock.img    "$OUT/boot-$SUF.img"
+ls -l "$OUT"/boot-"$SUF"*.img
+md5sum "$OUT"/boot-"$SUF"*.img
+echo "==> 完成: BOARD=$BOARD NOMODEM=$NOMODEM"

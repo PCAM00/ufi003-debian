@@ -92,11 +92,12 @@ if [ "$VARIANT" = "modem" ]; then
         echo "!! 缺 /usr/local/bin/diag-router(imei.sh 只能备份/恢复)"
     fi
 else
-    echo "  -> 无基带:删 modem/GPS 固件,屏蔽相关服务"
+    echo "  -> 无基带:删 modem/GPS 固件,屏蔽 ModemManager/sim-changer/diag-router"
+    rm -f /usr/local/bin/diag-router
     rm -rf /usr/lib/firmware/modem.* /usr/lib/firmware/mba.mbn \
            /usr/lib/firmware/modem_pr /usr/lib/firmware/isdbtmm.* \
            /usr/lib/firmware/nfc_test.bin
-    for u in ModemManager.service openstick-sim-changer.service \
+    for u in ModemManager.service openstick-sim-changer.service diag-router.service \
              openstick-startup-diagnose.service openstick-startup-diagnose.timer; do
         systemctl disable "$u" >/dev/null 2>&1 || true
         systemctl mask "$u" >/dev/null 2>&1 || true
