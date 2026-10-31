@@ -85,20 +85,25 @@ if nomodem:
         src, ok = drop_node(src, node)
         print(f'  去基带: {"已删除 " + node if ok else node + " 不存在"}')
 
-# 加 3 档 OPP(1.2GHz)——幂等:若已存在就跳过
-if 'opp-1209600000' in src:
+# 原频版 DTB 用"删过 mpss(如需要)、不加 OPP"的文本
+open('base.dts', 'w', encoding='utf-8').write(src)
+
+# OC 版:再加 3 档 OPP(幂等)
+oc_src = src
+if 'opp-1209600000' in oc_src:
     print('DTB 里已有 1.2GHz OPP,跳过插入')
 else:
-    m = re.search(r'\n(\s*)opp-998400000 \{\n\s+opp-hz = <0x00 0x3b826000>;\n(\s*)\};', src)
+    m = re.search(r'\n(\s*)opp-998400000 \{\n\s+opp-hz = <0x00 0x3b826000>;\n(\s*)\};', oc_src)
     assert m, '没找到 opp-998400000 锚点'
     ind = m.group(1)
     add = ''.join(f'\n{ind}opp-{hz} {{\n{ind}\topp-hz = <0x00 0x{hz:x}>;\n{ind}}};'
                   for hz in (1094400000, 1152000000, 1209600000))
-    src = src[:m.end()] + add + src[m.end():]
+    oc_src = oc_src[:m.end()] + add + oc_src[m.end():]
     print('已插入 3 档 OPP')
-open('board.dts', 'w', encoding='utf-8').write(src)
+open('oc.dts', 'w', encoding='utf-8').write(oc_src)
 PY
-dtc -I dts -O dtb board.dts -o board-oc.dtb
+dtc -I dts -O dtb base.dts -o base.dtb
+dtc -I dts -O dtb oc.dts   -o board-oc.dtb
 # 注意:不能用 "xxx | grep -q"(grep -q 命中即关管道 -> 上游 SIGPIPE,pipefail 判失败)
 CHECK=$(dtc -I dtb -O dts board-oc.dtb 2>/dev/null) || { echo "反编译校验失败" >&2; exit 1; }
 case "$CHECK" in
@@ -137,14 +142,18 @@ def pack(dtb_bytes, out):
     print(out, len(o), '字节')
     return o
 
-stock = pack(open('board.dtb', 'rb').read(),    'boot-stock.img')
+stock = pack(open('base.dtb', 'rb').read(),     'boot-stock.img')
 oc    = pack(open('board-oc.dtb', 'rb').read(), 'boot-oc-modem.img')
 assert oc != stock, 'oc 与原频镜像内容相同,OPP 没生效'
 # 按内容校验(不能按大小:去基带删节点会抵消加 OPP 带来的增长)
 OPP_MARK = bytes.fromhex('48190800')      # 1209600000 的低 4 字节
 assert OPP_MARK in oc,    'oc 镜像里没有 1.2GHz OPP'
 assert OPP_MARK not in stock, '原频镜像里不该有 1.2GHz OPP'
-print('结构校验通过(OPP 标记已确认)')
+if os.environ.get('NOMODEM', '0') == '1':
+    MPSS = b'mpss@86800000'
+    assert MPSS not in oc and MPSS not in stock, '去基带失败:镜像里仍能看到 mpss 保留内存区'
+    print('去基带校验:两份镜像都没有 mpss 内存区 OK')
+print('结构校验通过')
 PY
 
 echo "==> [4/4] 拷出"
